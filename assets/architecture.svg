@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+    <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#222" />
+        </marker>
+        <style>
+      .box { fill:#fff; stroke:#222; stroke-width:2px; rx:12; ry:12; }
+      .title { font: bold 18px 'Segoe UI', Roboto, Arial; fill:#111; }
+      .label { font: 14px 'Segoe UI', Roboto, Arial; fill:#111; }
+      .sub { font: 12px 'Segoe UI', Roboto, Arial; fill:#333; }
+      .arrow { stroke:#222; stroke-width:2; fill:none; marker-end:url(#arrow); }
+      .bg { fill: #f7f9fc; }
+        </style>
+    </defs>
+
+    <rect class="bg" x="0" y="0" width="1600" height="1000" />
+
+    <!-- Top box: UI -->
+    <g transform="translate(300,30)">
+        <rect class="box" x="0" y="0" width="1000" height="70" rx="14" ry="14" />
+        <text class="title" x="20" y="38">User Interface</text>
+        <text class="sub" x="20" y="55">(Text, Audio, Sign Language)</text>
+    </g>
+
+    <!-- Second row: Accessibility Tools (left) and Authentication (right) -->
+    <g transform="translate(60,150)">
+        <rect class="box" x="0" y="0" width="420" height="110" rx="12" ry="12" />
+        <text class="title" x="18" y="34">Accessibility Tools</text>
+        <text class="sub" x="18" y="54">(Text-to-Speech, Speech-to-Text,</text>
+        <text class="sub" x="18" y="72">Sign Language)</text>
+    </g>
+
+    <g transform="translate(1120,150)">
+        <rect class="box" x="0" y="0" width="420" height="110" rx="12" ry="12" />
+        <text class="title" x="18" y="34">Authentication</text>
+        <text class="sub" x="18" y="54">(Login / Register)</text>
+    </g>
+
+    <!-- Center: Ai Assistant -->
+    <g transform="translate(550,200)">
+        <rect class="box" x="0" y="0" width="500" height="110" rx="12" ry="12" />
+        <text class="title" x="18" y="34">Ai Assistant</text>
+        <text class="sub" x="18" y="54">(wake-word, STT, TTS, transcript UI)</text>
+    </g>
+
+    <!-- Content Display middle-right under AI -->
+    <g transform="translate(980,360)">
+        <rect class="box" x="0" y="0" width="300" height="90" rx="12" ry="12" />
+        <text class="title" x="12" y="30">Content Display</text>
+        <text class="sub" x="12" y="50">(Courses, Resources, Dashboard)</text>
+    </g>
+
+    <!-- Admin Dashboard right-middle -->
+    <g transform="translate(1120,280)">
+        <rect class="box" x="0" y="0" width="420" height="110" rx="12" ry="12" />
+        <text class="title" x="18" y="34">Admin Dashboard</text>
+        <text class="sub" x="18" y="54">(admin pages & controls)</text>
+    </g>
+
+    <!-- Content Management bottom-left -->
+    <g transform="translate(60,380)">
+        <rect class="box" x="0" y="0" width="420" height="110" rx="12" ry="12" />
+        <text class="title" x="18" y="34">Content Management</text>
+        <text class="sub" x="18" y="54">(create/edit courses, resources)</text>
+    </g>
+
+    <!-- Feedback bottom-right -->
+    <g transform="translate(1120,420)">
+        <rect class="box" x="0" y="0" width="420" height="110" rx="12" ry="12" />
+        <text class="title" x="18" y="34">Feedback Component</text>
+        <text class="sub" x="18" y="54">(user reports, bug/feedback)</text>
+    </g>
+
+    <!-- Backend bottom center -->
+    <g transform="translate(450,560)">
+        <rect class="box" x="0" y="0" width="700" height="120" rx="12" ry="12" />
+        <text class="title" x="18" y="44">Backend / Storage</text>
+        <text class="sub" x="18" y="68">(Firestore, Cloud Functions, Storage)</text>
+    </g>
+
+    <!-- Arrows from UI to AT, AUTH, AI, DISPLAY -->
+    <path class="arrow" d="M 800 100 L 270 150" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 800 100 L 1340 150" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 800 100 L 800 220" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 800 100 L 1140 410" marker-end="url(#arrow)" />
+
+    <!-- AT <-> AI -->
+    <path class="arrow" d="M 480 260 L 550 260" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 1050 260 L 980 260" marker-end="url(#arrow)" />
+
+    <!-- AUTH -> PROFILE (visualized as ADMIN path to ADMIN dashboard) -->
+    <path class="arrow" d="M 1360 260 L 1120 280" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 1360 260 L 850 300" marker-end="url(#arrow)" />
+
+    <!-- PROFILE -> UI & AI & ADMIN (represented) -->
+    <path class="arrow" d="M 850 320 L 700 100" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 850 320 L 800 260" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 850 320 L 1120 300" marker-end="url(#arrow)" />
+
+    <!-- AI -> Backend & Display & AT -->
+    <path class="arrow" d="M 950 310 L 850 620" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 1050 310 L 1200 400" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 900 310 L 480 250" marker-end="url(#arrow)" />
+
+    <!-- ADMIN -> CM -->
+    <path class="arrow" d="M 1280 340 L 480 410" marker-end="url(#arrow)" />
+
+    <!-- CM -> BE & BE -> DISPLAY -->
+    <path class="arrow" d="M 360 490 L 700 620" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 800 680 L 1150 420" marker-end="url(#arrow)" />
+
+    <!-- FB -> BE & FB -> ADMIN & FB -> CM -->
+    <path class="arrow" d="M 1360 530 L 800 660" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 1360 530 L 1120 380" marker-end="url(#arrow)" />
+    <path class="arrow" d="M 1360 530 L 400 410" marker-end="url(#arrow)" />
+
+    <!-- BE to bottom center already present as box -->
+
+    <text class="label" x="60" y="750">Generated diagram: architecture.svg — maps app components to storage, auth, AI assistant and accessibility flows.</text>
+</svg>
