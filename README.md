@@ -2,7 +2,7 @@
 
 A sleek, modern, and fully accessible web platform designed to empower students with disabilities at universities. Built with Next.js 15, TypeScript, Tailwind CSS, and Framer Motion for smooth animations and accessibility.
 
-## 🎯 Project Overview
+##Project Overview
 
 SenseAid is a comprehensive educational portal tailored for three primary user groups:
 
