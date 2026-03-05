@@ -17,7 +17,7 @@ interface NavItem {
 }
 
 // Logo component - moved outside Navigation to avoid recreation
-const LogoComponent: React.FC<{ currentTheme: string; partnerId?: string | undefined }> = ({ currentTheme, partnerId }) => {
+const LogoComponent: React.FC<{ currentTheme: string; partnerId?: string | undefined; href?: string }> = ({ currentTheme, partnerId, href = '/' }) => {
   const partner = partnerId ? PARTNERS.find((p) => p.id === partnerId) : null;
   
   // Use explicit inline gradient when a partner provides hex values to avoid
@@ -28,7 +28,7 @@ const LogoComponent: React.FC<{ currentTheme: string; partnerId?: string | undef
 
   return (
     <Link
-      href="/"
+      href={href}
       className="flex items-center gap-2 group transition-all duration-300"
     >
       <div
@@ -63,6 +63,23 @@ const Navigation: React.FC = () => {
   const profile = useAuthStore((s) => s.profile);
   const logout = useAuthStore((s) => s.logout);
 
+  // Try to read a persisted profile synchronously from localStorage so
+  // returning users see the authenticated navigation immediately while
+  // the zustand store rehydrates and `initializeAuth()` completes.
+  const getPersistedProfile = (): typeof profile | null => {
+    try {
+      if (typeof window === 'undefined') return null;
+      const raw = localStorage.getItem('profile-storage');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.state?.profile ?? null;
+    } catch (err) {
+      return null;
+    }
+  };
+
+  const [persistedProfile] = React.useState(() => getPersistedProfile());
+
   const toggleTheme = () => setTheme(currentTheme === 'light' ? 'dark' : 'light');
 
   // PUBLIC NAV
@@ -73,11 +90,12 @@ const Navigation: React.FC = () => {
     { label: 'Deafness', href: '/deafness', icon: <Ear size={18} /> },
     { label: 'Services', href: '/services', icon: <Accessibility size={18} /> },
     { label: 'Blog', href: '/blog', icon: <BookOpen size={18} /> },
+    { label: 'Professor', href: '/professor/login', icon: <GraduationCap size={18} /> },
   ];
 
   // AUTHENTICATED NAV
   const authNav: NavItem[] = [
-    { label: 'Home', href: '/', icon: <Home size={18} />, category: 'learning' },
+    { label: 'Home', href: profile ? '/dashboard' : '/', icon: <Home size={18} />, category: 'learning' },
     { label: 'Courses', href: '/courses', icon: <GraduationCap size={18} />, category: 'learning' },
     { label: 'Dashboard', href: '/dashboard', icon: <BarChart3 size={18} />, category: 'learning' },
     { label: 'Messages', href: '/messages', icon: <MessageSquare size={18} />, category: 'social' },
@@ -87,9 +105,14 @@ const Navigation: React.FC = () => {
       ? [{ label: 'Live Sign', href: '/live-sign', icon: <Accessibility size={18} />, category: 'learning' as const }]
       : []),
     { label: 'Profile', href: '/profile', icon: <Settings size={18} />, category: 'account' },
+    // Professor quick access for users with the professor role
+    ...(profile && profile.role === 'professor' ? [{ label: 'Professor', href: '/professor/dashboard', icon: <GraduationCap size={18} />, category: 'learning' as const }] : []),
   ];
 
-  const navItems = (user || profile) ? authNav : publicNav;
+  // Use the persisted profile as a fallback until the store finishes
+  // initializing so the correct nav is shown without a flash.
+  const effectiveProfile = profile || persistedProfile;
+  const navItems = (user || effectiveProfile) ? authNav : publicNav;
 
   const handleLogout = async () => {
     try {
@@ -100,6 +123,8 @@ const Navigation: React.FC = () => {
     }
   };
 
+  const logoHref = effectiveProfile ? '/dashboard' : '/';
+
   return (
     <nav className={clsx(
       'sticky top-0 z-50 backdrop-blur-lg bg-opacity-90 transition-all duration-300 border-b',
@@ -109,7 +134,7 @@ const Navigation: React.FC = () => {
     )}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <LogoComponent currentTheme={currentTheme} partnerId={profile?.partner} />
+          <LogoComponent currentTheme={currentTheme} partnerId={profile?.partner} href={logoHref} />
 
           <div className="hidden md:flex items-center gap-1">
             {navItems.slice(0, -1).map((item) => (
@@ -159,17 +184,17 @@ const Navigation: React.FC = () => {
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
 
-            {profile ? (
+            {effectiveProfile ? (
               <div className="hidden sm:flex items-center gap-2">
                 <Link
                   href="/profile"
                   className={clsx(
                     'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-white hover:shadow-lg transition-all',
-                    profile?.partner ? getPartnerGradientClass(profile.partner) ?? 'bg-gradient-to-r from-emerald-600 to-cyan-600' : 'bg-gradient-to-r from-emerald-600 to-cyan-600'
+                    effectiveProfile?.partner ? getPartnerGradientClass(effectiveProfile.partner) ?? 'bg-gradient-to-r from-emerald-600 to-cyan-600' : 'bg-gradient-to-r from-emerald-600 to-cyan-600'
                   )}
                 >
                   <Settings size={16} />
-                  <span className="hidden lg:inline">{profile.displayName}</span>
+                  <span className="hidden lg:inline">{effectiveProfile.displayName}</span>
                 </Link>
                 <button
                   onClick={handleLogout}

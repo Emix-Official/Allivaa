@@ -266,9 +266,31 @@ The platform follows **WCAG 2.1 Level AA** standards:
 3. Set environment variables in Vercel dashboard
 4. Deploy with one click
 
+### Firebase Hosting (no Cloud Functions)
+
+This repository is configured to run entirely client-side with Firebase Hosting and Firestore. Cloud Functions are not used — any previous `functions/` build/deploy hooks have been removed to avoid unnecessary costs.
+
+- Build the app locally:
+
+```powershell
+npm run build
+```
+
+- Deploy hosting and Firestore rules/indexes only:
+
+```powershell
+firebase deploy --only hosting,firestore:rules,firestore:indexes
+```
+
+Or deploy hosting alone:
+
+```powershell
+firebase deploy --only hosting
+```
+
 ### Other Platforms
 
-The app can be deployed to any Node.js hosting:
+The app can also be deployed to any Node.js hosting if preferred:
 
 - AWS Amplify
 - Netlify
@@ -374,5 +396,7 @@ For questions or suggestions about SenseAid, please reach out through the Contac
 ---
 
 **Happy Learning! 🎉** - SenseAid Team
-#   s e n s a i d  
+#   s e n s a i d 
  
+ 
+# alliva

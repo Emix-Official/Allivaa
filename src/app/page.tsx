@@ -3,6 +3,7 @@
 import Navigation from '@/components/Layout/Navigation';
 import Footer from '@/components/Layout/Footer';
 import Hero from '@/components/UI/Hero';
+import { useEffect } from 'react';
 import Card from '@/components/UI/Card';
 import Button from '@/components/UI/Button';
 import { trackEvent } from '@/lib/analytics';
@@ -70,9 +71,18 @@ const TabCard = ({
 
 export default function ProfilePage() {
   const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const logout = useAuthStore((state) => state.logout);
   const profile = useProfileStore((state) => state.profile);
   const router = useRouter();
+
+  // If user is signed in, redirect the root home to the dashboard page
+  // so `/` acts as the public landing and `/dashboard` is the signed-in home.
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, router]);
 
   const renderDashboard = () => {
     if (!profile) {

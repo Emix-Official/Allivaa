@@ -108,7 +108,6 @@ Replaced minimal landing with a comprehensive public homepage:
 ```
 ✅ No NEW errors introduced by theme migration
 ✅ Existing preexisting issues (23 errors, 3939 warnings) remain unchanged
-   - 2 require() errors in functions/index.js (not modified)
    - 1 any type in pages.disabled/courses/index.tsx (not modified)
    - Other preexisting warnings in build artifacts and disabled pages
 ```
@@ -189,6 +188,22 @@ The following preexisting issues exist but are NOT new and do not block deployme
 - Build artifacts lint warnings (in `.firebase/` output)
 
 These can be addressed in a future cleanup pass.
+
+### Functions Removed
+
+This project no longer uses Firebase Cloud Functions. Any previous `functions/` code and build hooks have been removed from the deployment configuration to avoid function deployment and associated costs.
+
+- To deploy hosting and Firestore rules/indexes only (no functions):
+
+```bash
+firebase deploy --only hosting,firestore:rules,firestore:indexes
+```
+
+If you prefer to deploy hosting alone:
+
+```bash
+firebase deploy --only hosting
+```
 
 ---
 

@@ -77,10 +77,10 @@ export const useAuthStore = create<AuthState>()(
           // If no profile, create one with the provided disability category
           if (!profile) {
             profile = await useProfileStore.getState().createProfile(
-              user,
-              user.displayName || 'Google User',
-              disabilityCategory
-            );
+                user,
+                user.displayName || 'Chinedu Okonkwo',
+                disabilityCategory
+              );
           }
 
           set({
@@ -181,7 +181,7 @@ export const useAuthStore = create<AuthState>()(
 
               // If the user is authenticated but has no profile, create one.
               if (!profile) {
-                profile = await useProfileStore.getState().createProfile(user, user.displayName || 'New User');
+                profile = await useProfileStore.getState().createProfile(user, user.displayName || 'Amina Yusuf');
               }
 
               set({ user, isAuthenticated: true, loading: false, profile });

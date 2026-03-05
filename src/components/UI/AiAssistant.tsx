@@ -89,6 +89,9 @@ export default function VoiceAssistant() {
       { name: 'resources', routes: ['resources', '/resources'], label: 'Resources', public: true },
       { name: 'dashboard', routes: ['dashboard', '/dashboard'], label: 'Dashboard', public: false },
       { name: 'courses', routes: ['courses', '/courses'], label: 'Courses', public: false },
+      // Static demo courses — added so voice commands can open these pages directly
+      { name: 'mts201', routes: ['mts 201', 'mts-201', '/courses/mts-201'], label: 'MTH 201', public: true },
+      { name: 'sen201', routes: ['sen 201', 'sen-201', '/courses/sen-201'], label: 'SEN 201', public: true },
       { name: 'profile', routes: ['profile', '/profile'], label: 'Profile', public: false },
       { name: 'messages', routes: ['messages', '/messages'], label: 'Messages', public: false },
     ],

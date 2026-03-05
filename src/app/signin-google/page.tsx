@@ -6,11 +6,12 @@ import { useThemeStore } from '@/store/themeStore';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Chrome, GraduationCap, Eye as EyeDisabled, Volume2, Ear, Loader, AlertCircle } from 'lucide-react';
+import { Chrome, Loader, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import DisabilityCategoryModal from '@/components/DisabilityCategoryModal';
 
 export default function SignInGooglePage() {
-  const [selectedCategory, setSelectedCategory] = useState<'blind' | 'mute' | 'deaf' | 'general' | null>(null);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -18,7 +19,6 @@ export default function SignInGooglePage() {
   const signInWithGoogle = useAuthStore((state) => state.signInWithGoogle);
   const authError = useAuthStore((state) => state.error);
   const clearError = useAuthStore((state) => state.clearError);
-  const colors = useThemeStore((state) => state.colors);
   const currentTheme = useThemeStore((state) => state.currentTheme);
 
   useEffect(() => {
@@ -27,28 +27,16 @@ export default function SignInGooglePage() {
     };
   }, [clearError]);
 
-  const categories = [
-    { value: 'general', label: 'General Student', Icon: GraduationCap },
-    { value: 'blind', label: 'Blind Student', Icon: EyeDisabled },
-    { value: 'mute', label: 'Mute Student', Icon: Volume2 },
-    { value: 'deaf', label: 'Deaf Student', Icon: Ear },
-  ];
-
   const handleGoogleSignIn = async () => {
-    if (!selectedCategory) {
-      setError('Please select your disability category');
-      return;
-    }
-
     setError('');
     setLoading(true);
 
     try {
-        await signInWithGoogle(selectedCategory);
-        clearError();
-        // Keep previous behaviour: land on dashboard after Google sign-in
-        router.push('/dashboard');
-      } catch {
+      // Sign in without category, will show modal after
+      await signInWithGoogle();
+      clearError();
+      setShowCategoryModal(true);
+    } catch {
       setError(authError || 'Google sign-in failed. Please try again.');
       setLoading(false);
     }
@@ -77,7 +65,7 @@ export default function SignInGooglePage() {
               Sign in with Google
             </h1>
             <p className={currentTheme === 'light' ? 'text-slate-600' : 'text-slate-300'}>
-              Select your disability category to continue
+              Connect with your Google account to get started
             </p>
           </div>
 
@@ -94,39 +82,14 @@ export default function SignInGooglePage() {
             </motion.div>
           )}
 
-          {/* Category Selection */}
-          <div className="mb-8">
-            <label className={`block text-sm font-semibold mb-4 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-              I am a:
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              {categories.map((cat) => (
-                <motion.button
-                  key={cat.value}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setSelectedCategory(cat.value as 'blind' | 'mute' | 'deaf' | 'general')}
-                  className={`p-4 rounded-lg border-2 backdrop-blur-md transition-all flex flex-col items-center gap-2 ${
-                    selectedCategory === cat.value
-                      ? 'bg-gradient-to-r from-emerald-600 to-cyan-500 border-transparent text-white shadow-lg'
-                      : currentTheme === 'light'
-                        ? 'border-white/40 bg-white/50 text-slate-900 hover:border-white/60'
-                        : 'border-white/20 bg-white/10 text-white hover:border-white/30'
-                  }`}
-                >
-                  <cat.Icon size={24} />
-                  <span className="text-xs font-medium text-center">{cat.label}</span>
-                </motion.button>
-              ))}
-            </div>
-          </div>
+          {/* Category selection moved to modal after sign-in */}
 
           {/* Google Sign-In Button */}
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleGoogleSignIn}
-            disabled={loading || !selectedCategory}
+            disabled={loading}
             className={`w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all bg-gradient-to-r from-emerald-600 to-cyan-600 text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {loading ? (
@@ -161,6 +124,16 @@ export default function SignInGooglePage() {
           </div>
         </motion.div>
       </div>
+      <DisabilityCategoryModal
+        isOpen={showCategoryModal}
+        isNewUser={false}
+        onSelectCategory={async (category: 'blind' | 'deaf' | 'mute' | 'general') => {
+          const { useProfileStore } = await import('@/store/profileStore');
+          await useProfileStore.getState().updateProfile({ disabilityCategory: category });
+          setShowCategoryModal(false);
+          router.push('/dashboard');
+        }}
+      />
     </div>
   );
 }

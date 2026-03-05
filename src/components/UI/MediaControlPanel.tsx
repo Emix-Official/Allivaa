@@ -3,7 +3,7 @@
 import React, { useRef, useState } from 'react';
 import { addDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import TranscriptModal from '@/components/UI/TranscriptModal';
+// TranscriptModal removed — replaced with snapshot/export detections UI
 
 type Props = {
   name?: string;
@@ -23,9 +23,6 @@ export default function MediaControlPanel({ name, url, type, storagePath, docId 
   const cameraRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const holisticRef = useRef<any>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalTranscript, setModalTranscript] = useState<string | null>(null);
-  const [modalTitle, setModalTitle] = useState<string | undefined>(undefined);
   const [autoTranslate, setAutoTranslate] = useState(false);
   const [translation, setTranslation] = useState<string>('');
   const [detections, setDetections] = useState<string[]>([]);
@@ -59,50 +56,18 @@ export default function MediaControlPanel({ name, url, type, storagePath, docId 
     }
   };
 
-  const openTranscriptModalForCurrent = async () => {
-    try {
-      const q = query(collection(db, 'captions'), where('storagePath', '==', storagePath || ''));
-      const snap = await getDocs(q);
-      if (snap.empty) return alert('No transcript available yet.');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const doc = snap.docs[0].data() as any;
-      const transcript = doc.transcript || '';
-      if (!transcript) return alert('Transcript found but empty.');
-      setModalTranscript(transcript);
-      setModalTitle(name || 'Transcript');
-      setModalOpen(true);
-    } catch (e) {
-      console.error(e);
-      alert('Failed to load transcript');
-    }
-  };
-
-  const readTranscriptIfAvailable = async () => {
-    try {
-      // try to find captions doc matching this file
-      const q = query(collection(db, 'captions'), where('storagePath', '==', storagePath || ''));
-      const snap = await getDocs(q);
-      if (snap.empty) return alert('No transcript available yet.');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const doc = snap.docs[0].data() as any;
-      const transcript = doc.transcript || '';
-      if (!transcript) return alert('Transcript found but empty.');
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        const u = new SpeechSynthesisUtterance(transcript);
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(u);
-      } else {
-        alert('SpeechSynthesis not available in this browser');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Failed to read transcript');
-    }
-  };
+  // Transcript-related functions removed. Replaced by snapshot + export features below.
 
   // MediaPipe Sign Language demo (Holistic) - fast parallel load
   const startSignCapture = async () => {
-    if (signActive) return;
+    if (signActive) {
+      // If already active, try a safe restart to recover from partial state
+      try {
+        stopSignCapture();
+      } catch {}
+      // small pause to ensure resources are released
+      await new Promise((r) => setTimeout(r, 200));
+    }
     setSignStatus('Initializing...');
     
     // Get user media first for faster visual feedback
@@ -185,9 +150,86 @@ export default function MediaControlPanel({ name, url, type, storagePath, docId 
 
       let isProcessing = false;
 
+      // helper: draw landmarks/connectors locally (fallback to MediaPipe drawing utils)
+      const HAND_CONNECTIONS: [number, number][] = [
+        [0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20]
+      ];
+      const POSE_CONNECTIONS: [number, number][] = [
+        [11,13],[13,15],[12,14],[14,16],[11,12],[23,24],[11,23],[12,24]
+      ];
+
+      const drawLandmarksLocal = (ctx: CanvasRenderingContext2D, landmarks: Array<any>, color = '#FF0000') => {
+        if (!landmarks || !landmarks.length) return;
+        // landmarks are normalized [0..1] relative to CSS pixels (w,h),
+        // while canvas.width/height are in device pixels. Compute CSS size.
+        const dpr = window.devicePixelRatio || 1;
+        const w = ctx.canvas.width / dpr;
+        const h = ctx.canvas.height / dpr;
+        ctx.fillStyle = color;
+        for (const p of landmarks) {
+          const x = p.x * w;
+          const y = p.y * h;
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      };
+
+      const drawConnectionsLocal = (ctx: CanvasRenderingContext2D, landmarks: Array<any>, connections: Array<[number,number]>, color = '#00FF00') => {
+        if (!landmarks || !landmarks.length) return;
+        const dpr = window.devicePixelRatio || 1;
+        const w = ctx.canvas.width / dpr;
+        const h = ctx.canvas.height / dpr;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        for (const [a,b] of connections) {
+          const p1 = landmarks[a];
+          const p2 = landmarks[b];
+          if (!p1 || !p2) continue;
+          const x1 = p1.x * w;
+          const y1 = p1.y * h;
+          const x2 = p2.x * w;
+          const y2 = p2.y * h;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+      };
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       holisticRef.current.onResults((results: any) => {
         isProcessing = true;
+        // Log a lightweight summary for debugging so we can see whether
+        // landmarks are being returned and why the skeleton may not appear.
+        try {
+          const poseCount = results.poseLandmarks ? results.poseLandmarks.length : 0;
+          const leftCount = results.leftHandLandmarks ? results.leftHandLandmarks.length : 0;
+          const rightCount = results.rightHandLandmarks ? results.rightHandLandmarks.length : 0;
+          logEvent(`Results: pose=${poseCount} left=${leftCount} right=${rightCount}`);
+          // Also expose a console.debug with a small sample of coords
+          if (poseCount || leftCount || rightCount) {
+            // show first landmark of each if present
+            console.debug('mediapipe result sample', {
+              pose0: results.poseLandmarks?.[0],
+              left0: results.leftHandLandmarks?.[0],
+              right0: results.rightHandLandmarks?.[0],
+              hasDrawUtils: Boolean((window as any).drawConnectors && (window as any).drawLandmarks),
+            });
+          }
+          // If any landmarks exist, clear waiting indicator
+          if ((poseCount + leftCount + rightCount) > 0) {
+            if (waitingForDetection) {
+              setWaitingForDetection(false);
+              if (firstDetectionTimeout.current) {
+                window.clearTimeout(firstDetectionTimeout.current as number);
+                firstDetectionTimeout.current = null;
+              }
+            }
+          }
+        } catch (e) {
+          console.error('result logging failed', e);
+        }
         
         // Draw skeleton
         const canvas = canvasRef.current;
@@ -202,38 +244,58 @@ export default function MediaControlPanel({ name, url, type, storagePath, docId 
           isProcessing = false;
           return;
         }
-        
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.save();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        // Draw landmarks
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if ((window as any).drawConnectors) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const d = window as any;
-          try {
-            if (results.poseLandmarks && d.POSE_CONNECTIONS) {
-              d.drawConnectors(ctx, results.poseLandmarks, d.POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
-            }
-            if (results.leftHandLandmarks && d.HAND_CONNECTIONS) {
-              d.drawConnectors(ctx, results.leftHandLandmarks, d.HAND_CONNECTIONS, { color: '#FF0000', lineWidth: 2 });
-              d.drawLandmarks(ctx, results.leftHandLandmarks, { color: '#FF0000', lineWidth: 1 });
-            }
-            if (results.rightHandLandmarks && d.HAND_CONNECTIONS) {
-              d.drawConnectors(ctx, results.rightHandLandmarks, d.HAND_CONNECTIONS, { color: '#0000FF', lineWidth: 2 });
-              d.drawLandmarks(ctx, results.rightHandLandmarks, { color: '#0000FF', lineWidth: 1 });
-            }
-            if (results.faceLandmarks && d.FACEMESH_TESSELATION) {
-              d.drawConnectors(ctx, results.faceLandmarks, d.FACEMESH_TESSELATION, { color: '#FFFFFF', lineWidth: 0.5 });
-            }
-          } catch {
-            // Ignore drawing errors
-          }
+        // handle high-DPI displays
+        const dpr = window.devicePixelRatio || 1;
+        const w = video.videoWidth || 640;
+        const h = video.videoHeight || 480;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+        // draw current video frame first
+        try {
+          ctx.drawImage(video, 0, 0, w, h);
+        } catch (e) {
+          // ignore draw errors
         }
-        ctx.restore();
+
+        // Prefer MediaPipe drawing utils if available, otherwise use local fallbacks
+        const win = window as any;
+        try {
+          if (win.drawConnectors && win.drawLandmarks) {
+            if (results.poseLandmarks && win.POSE_CONNECTIONS) {
+              win.drawConnectors(ctx, results.poseLandmarks, win.POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+            }
+            if (results.leftHandLandmarks && win.HAND_CONNECTIONS) {
+              win.drawConnectors(ctx, results.leftHandLandmarks, win.HAND_CONNECTIONS, { color: '#FF0000', lineWidth: 2 });
+              win.drawLandmarks(ctx, results.leftHandLandmarks, { color: '#FF0000', lineWidth: 1 });
+            }
+            if (results.rightHandLandmarks && win.HAND_CONNECTIONS) {
+              win.drawConnectors(ctx, results.rightHandLandmarks, win.HAND_CONNECTIONS, { color: '#0000FF', lineWidth: 2 });
+              win.drawLandmarks(ctx, results.rightHandLandmarks, { color: '#0000FF', lineWidth: 1 });
+            }
+            if (results.faceLandmarks && win.FACEMESH_TESSELATION) {
+              win.drawConnectors(ctx, results.faceLandmarks, win.FACEMESH_TESSELATION, { color: '#FFFFFF', lineWidth: 0.5 });
+            }
+          } else {
+            // local draw fallback
+            if (results.poseLandmarks) drawConnectionsLocal(ctx, results.poseLandmarks, POSE_CONNECTIONS, '#00FF00');
+            if (results.leftHandLandmarks) {
+              drawConnectionsLocal(ctx, results.leftHandLandmarks, HAND_CONNECTIONS, '#FF0000');
+              drawLandmarksLocal(ctx, results.leftHandLandmarks, '#FF0000');
+            }
+            if (results.rightHandLandmarks) {
+              drawConnectionsLocal(ctx, results.rightHandLandmarks, HAND_CONNECTIONS, '#0000FF');
+              drawLandmarksLocal(ctx, results.rightHandLandmarks, '#0000FF');
+            }
+            if (results.faceLandmarks) drawLandmarksLocal(ctx, results.faceLandmarks, '#FFFFFF');
+          }
+        } catch (e) {
+          // Drawing should not break the pipeline
+          console.error('drawing failed', e);
+        }
 
         // Process hand gestures for translation
         try {
@@ -342,7 +404,16 @@ export default function MediaControlPanel({ name, url, type, storagePath, docId 
         }
       }, 8000);
       
+      let initAttempts = 0;
+      const maxInitAttempts = 80; // ~8s (100ms per retry)
       const initCamera = () => {
+        initAttempts += 1;
+        if (initAttempts > maxInitAttempts) {
+          setSignStatus('Video not ready. Please check camera or permissions.');
+          logEvent('initCamera: giving up after retries');
+          return;
+        }
+
         if (videoRef.current && videoRef.current.readyState >= 2) {
           // Video is ready
           if (Camera) {
@@ -357,10 +428,32 @@ export default function MediaControlPanel({ name, url, type, storagePath, docId 
                 width: 640,
                 height: 480,
               });
-              cameraRef.current.start();
-              setSignActive(true);
-              setSignStatus('✓ Sign capture active');
-              logEvent('Camera started and sign capture active');
+              // Start camera and guard against double-start. Some Camera
+              // implementations return a Promise and some do not, so handle
+              // both cases without using `await` inside this non-async
+              // callback.
+              try {
+                const maybe = cameraRef.current.start && cameraRef.current.start();
+                if (maybe && typeof (maybe as Promise<any>).then === 'function') {
+                  (maybe as Promise<any>).then(() => {
+                    setSignActive(true);
+                    setSignStatus('✓ Sign capture active');
+                    logEvent('Camera started and sign capture active');
+                  }).catch((err: any) => {
+                    console.error('camera start failed (async)', err);
+                    setSignStatus('Failed to start camera feed');
+                    logEvent('Camera start failed');
+                  });
+                } else {
+                  setSignActive(true);
+                  setSignStatus('✓ Sign capture active');
+                  logEvent('Camera started and sign capture active');
+                }
+              } catch (e) {
+                console.error('camera start failed', e);
+                setSignStatus('Failed to start camera feed');
+                logEvent('Camera start failed');
+              }
             } catch (e) {
               console.error('camera start failed', e);
               setSignStatus('Failed to start camera feed');
@@ -419,8 +512,56 @@ export default function MediaControlPanel({ name, url, type, storagePath, docId 
     } catch (e) {
       console.error('stop failed', e);
     }
+    // Clear refs and timers
+    try {
+      if (cameraRef.current && cameraRef.current.stop) cameraRef.current = null;
+    } catch {}
+    if (firstDetectionTimeout.current) {
+      window.clearTimeout(firstDetectionTimeout.current as number);
+      firstDetectionTimeout.current = null;
+    }
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    setWaitingForDetection(false);
     setSignActive(false);
     setSignStatus(null);
+  };
+
+  const snapshotCanvas = () => {
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas) return alert('No canvas available');
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sign_snapshot_${Date.now()}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    } catch (e) {
+      console.error('snapshot failed', e);
+      alert('Snapshot failed');
+    }
+  };
+
+  const exportDetections = () => {
+    try {
+      const data = JSON.stringify({ detections, translation, timestamp: new Date().toISOString() }, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sign_detections_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('export failed', e);
+      alert('Export failed');
+    }
   };
 
 
@@ -435,10 +576,7 @@ export default function MediaControlPanel({ name, url, type, storagePath, docId 
 
         <div className="flex flex-col gap-2">
           <button onClick={enqueueCaption} disabled={loading} className="px-3 py-2 bg-indigo-600 text-white rounded">Auto Caption</button>
-          <div className="flex items-center gap-2">
-            <button onClick={readTranscriptIfAvailable} className="px-3 py-2 bg-green-600 text-white rounded">Read Transcript</button>
-            <button onClick={openTranscriptModalForCurrent} className="px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white rounded hover:bg-gray-200 dark:hover:bg-slate-600">View Transcript</button>
-          </div>
+          {/* Transcript functionality removed — replaced by Detections & Snapshot tools below */}
           <a href={url} target="_blank" rel="noreferrer" className="inline-block px-3 py-2 bg-gray-200 dark:bg-slate-700 rounded">Download</a>
           {/* Sign-language demo: start/stop webcam and show landmarks using MediaPipe Holistic (CDN or installed) */}
           <div className="border-t pt-3">
@@ -462,20 +600,45 @@ export default function MediaControlPanel({ name, url, type, storagePath, docId 
                 <div className="text-xs text-gray-500 mt-1">Loading skeleton assets... {loadingProgress}%</div>
               </div>
             )}
-            <div className="mt-3 grid grid-cols-1 gap-2">
-              <video ref={videoRef} className="w-full rounded bg-black" autoPlay playsInline muted style={{ display: signActive ? 'block' : 'none' }} />
-              <canvas ref={canvasRef} className="w-full rounded border" style={{ display: signActive ? 'block' : 'none' }} />
+            <div className="mt-3">
+              <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
+                {/* Wrapper uses aspect-ratio trick (16:9) — canvas overlays video */}
+                <video
+                  ref={videoRef}
+                  className={"absolute left-0 top-0 w-full h-full object-cover rounded bg-black"}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{ display: signActive ? 'block' : 'none' }}
+                />
+                <canvas
+                  ref={canvasRef}
+                  className={"absolute left-0 top-0 w-full h-full rounded pointer-events-none"}
+                  style={{ display: signActive ? 'block' : 'none' }}
+                />
+
+                {/* Live translation overlay (visible over the canvas) */}
+                <div className="absolute top-3 right-3 z-50 bg-black/70 text-white p-3 rounded max-w-[320px]">
+                  <div className="text-sm font-semibold">Live Translation</div>
+                  <div className="mt-1 text-lg leading-tight font-bold">{translation || (detections[0] ?? '—')}</div>
+                  {autoTranslate && translation && (
+                    <div className="mt-1 text-xs text-gray-200">Auto-saved: {new Date().toLocaleTimeString()}</div>
+                  )}
+                </div>
+              </div>
             </div>
-            {/* Live transcript / detection area */}
+            {/* Detections panel + snapshot/export */}
             <div className="mt-3">
               <div className="flex items-center gap-2 mb-2">
                 <label className="inline-flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={autoTranslate} onChange={(e) => setAutoTranslate(e.target.checked)} />
                   <span>Auto-Translate</span>
                 </label>
-                <button onClick={async () => { if (!translation) return; try { await addDoc(collection(db, 'signTranslations'), { storagePath: storagePath || null, docId: docId || null, translation, createdAt: new Date() }); alert('Saved translation'); } catch (e) { console.error(e); alert('Save failed'); } }} className="px-2 py-1 bg-slate-100 rounded text-sm">Save</button>
                 <button onClick={() => { if (!translation) return; navigator.clipboard?.writeText(translation); }} className="px-2 py-1 bg-slate-100 rounded text-sm">Copy</button>
+                <button onClick={() => snapshotCanvas()} className="px-2 py-1 bg-slate-100 rounded text-sm">Snapshot</button>
+                <button onClick={() => exportDetections()} className="px-2 py-1 bg-slate-100 rounded text-sm">Export Detections</button>
               </div>
+
               <div className="p-2 bg-gray-100 dark:bg-slate-800 rounded border border-gray-300 dark:border-slate-700 min-h-[44px]">
                 {waitingForDetection ? (
                   <div className="flex items-center gap-2">
@@ -485,11 +648,14 @@ export default function MediaControlPanel({ name, url, type, storagePath, docId 
                 ) : (
                   <div>
                     {detections.length === 0 && !translation ? (
-                      <div className="text-gray-600 dark:text-gray-400 text-sm">No translation yet</div>
+                      <div className="text-gray-600 dark:text-gray-400 text-sm">No detections yet</div>
                     ) : (
                       <div className="flex flex-col gap-1">
                         {detections.map((d, i) => (
-                          <div key={i} className="text-sm">{d}</div>
+                          <div key={i} className="text-sm flex items-center justify-between">
+                            <span>{d}</span>
+                            <span className="text-xs text-slate-500">{new Date().toLocaleTimeString()}</span>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -515,7 +681,7 @@ export default function MediaControlPanel({ name, url, type, storagePath, docId 
           </div>
         </div>
       </div>
-      <TranscriptModal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={modalTitle} transcript={modalTranscript} filename={`${modalTitle || 'transcript'}.txt`} />
+      {/* Transcript modal removed — no longer used */}
     </div>
   );
 }
